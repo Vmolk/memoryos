@@ -8,6 +8,7 @@
     "start": "node src/server.js"
   },
   "dependencies": {
-    "@qvac/sdk": "0.13.3"
+    "@qvac/sdk": "0.13.3",
+    "express": "^5.2.1"
   }
 }

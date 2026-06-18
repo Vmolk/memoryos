@@ -1,17 +1,63 @@
 <!DOCTYPE html>
 <!--
-  index.html — MemoryOS UI (Phase C).
-  Two views: Capture (text input / audio upload) and Timeline (memory list + emotion chart).
-  HARD RULE: zero remote resources. No CDN scripts, fonts, or styles — everything vendored
-  under public/vendor/. STUB — no markup yet.
+  index.html — MemoryOS UI.
+  Two views: Capture (text / audio upload) and Timeline (memory list + emotion chart).
+  HARD RULE: zero remote resources. No CDN, no remote fonts, no favicon URL, no analytics.
+  System font stack only; all assets local.
 -->
 <html lang="vi">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MemoryOS</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <!-- Phase C -->
+    <header>
+      <h1>MemoryOS</h1>
+      <p class="tagline">Remember what matters — not everything. On-device. Private.</p>
+      <nav>
+        <button id="tab-capture" class="tab active" data-view="capture">Capture</button>
+        <button id="tab-timeline" class="tab" data-view="timeline">Timeline</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- Capture view -->
+      <section id="view-capture" class="view active">
+        <div class="card">
+          <div class="mode-row">
+            <button id="mode-text" class="mode active" data-mode="text">Text</button>
+            <button id="mode-voice" class="mode" data-mode="voice">Voice</button>
+          </div>
+
+          <div id="panel-text" class="panel active">
+            <textarea id="text-input" rows="6" placeholder="Viết lại điều đáng nhớ hôm nay…"></textarea>
+            <button id="btn-save-text" class="primary">Save memory</button>
+          </div>
+
+          <div id="panel-voice" class="panel">
+            <input id="audio-input" type="file" accept=".m4a,.mp3,.wav,.ogg,.flac,.aac,audio/*" />
+            <button id="btn-save-voice" class="primary">Transcribe &amp; save</button>
+            <p class="hint">Chọn file audio (.m4a/.mp3/.wav/.ogg). Giọng nói được phiên âm on-device.</p>
+          </div>
+
+          <div id="status" class="status"></div>
+          <div id="result" class="result"></div>
+        </div>
+      </section>
+
+      <!-- Timeline view -->
+      <section id="view-timeline" class="view">
+        <div class="card">
+          <h2>Emotion over time</h2>
+          <div id="chart"></div>
+        </div>
+        <div id="memory-list"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
   </body>
 </html>
