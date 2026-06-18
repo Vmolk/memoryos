@@ -1,0 +1,10 @@
+{
+  "project": "MemoryOS",
+  "hackathon": "QVAC Hackathon I (Tether)",
+  "statement": "All AI inference runs on-device via the QVAC SDK. No data leaves the user's machine at runtime.",
+  "remote_api_calls": [],
+  "cloud_ai_used": false,
+  "frontend_remote_resources": [],
+  "telemetry_or_analytics": false,
+  "notes": "Model weights are downloaded once from the public QVAC model registry on first run (one-time setup, not runtime inference). After download, the app runs fully offline. See README for the exact model-download command."
+}

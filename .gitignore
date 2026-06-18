@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Model weights (never commit — downloaded via QVAC registry, see README)
+*.gguf
+*.bin
+.qvac/
+models/
+
+# Local memory database (user data — stays on device)
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+
+# Secrets
+.env
+.env.*
+
+# Logs: ignore scratch logs, but KEEP the curated demo-run as evidence artifact
+logs/*
+!logs/.gitkeep
+!logs/demo-run.jsonl
+
+# OS / editor
+.DS_Store
+Thumbs.db
