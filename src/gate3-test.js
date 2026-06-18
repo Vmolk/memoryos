@@ -90,15 +90,16 @@ try {
   logEvent({ event: "load", model: "LLAMA_3_2_1B_INST_Q4_0", model_id: llmId });
 
   for (const { query, top } of retrieval) {
-    const context = top.map((t) => `- (memory #${t.id}) ${memories.find((m) => m.id === t.id).text}`).join("\n");
+    const context = top.map((t, i) => `[${i + 1}] ${memories.find((m) => m.id === t.id).text}`).join("\n");
     const run = completion({
       modelId: llmId,
       history: [
-        { role: "system", content: "Answer the user's question using ONLY the provided memories. If the answer is not in them, reply exactly: \"I don't have a memory about that.\" Do not invent facts. Answer in the same language as the question." },
-        { role: "user", content: `Memories:\n${context}\n\nQuestion: ${query.q}` },
+        { role: "system", content: "You are answering a question about the user's past journal notes. Use ONLY the facts in the numbered notes provided. Write a concise 1-2 sentence answer in the SAME language as the question. Never copy the notes verbatim and never repeat the word 'notes'. If the notes do not contain the answer, reply exactly with: NOT_FOUND" },
+        { role: "user", content: `Notes:\n${context}\n\nQuestion: ${query.q}\n\nAnswer:` },
       ],
-      stream: false,
+      stream: true,
     });
+    for await (const ev of run.events) { if (ev.type === "contentDelta") { /* drain */ } }
     const final = await run.final;
     logEvent({ event: "inference", model: "LLAMA_3_2_1B_INST_Q4_0", model_id: llmId,
       ttft_ms: final.stats?.timeToFirstToken ?? null, tokens_per_sec: final.stats?.tokensPerSecond ?? null,
