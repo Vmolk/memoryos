@@ -24,3 +24,4 @@ logs/*
 # OS / editor
 .DS_Store
 Thumbs.db
+samples/
