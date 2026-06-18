@@ -6,18 +6,28 @@
 
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { transcribeAudio, organize, unloadAll } from "./qvac.js";
+import { transcribeAudio, organize, unloadAll, EMOTION_LABELS } from "./qvac.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SAMPLE_AUDIO = resolve(__dirname, "../samples/demo-vi.m4a");
 
+const NEGATIVE = new Set(["anxious", "sad", "angry"]);
+const POSITIVE = new Set(["joyful", "grateful", "calm"]);
+
 function validate(mem, label) {
-  const ok =
+  const fieldsOk =
     typeof mem.summary === "string" && mem.summary.length > 0 &&
     typeof mem.emotion === "string" && mem.emotion.length > 0 &&
     typeof mem.emotion_score === "number" && mem.emotion_score >= -1 && mem.emotion_score <= 1 &&
     Array.isArray(mem.tags) && mem.tags.length > 0;
-  console.log(`\n[${label}] valid 4-field memory: ${ok ? "✅ YES" : "❌ NO"}`);
+  // Empirical proof the enum grammar holds: emotion must be in the fixed list.
+  const enumOk = EMOTION_LABELS.includes(mem.emotion);
+  // Sign alignment: label and score must not contradict.
+  const signOk =
+    !(NEGATIVE.has(mem.emotion) && mem.emotion_score > 0) &&
+    !(POSITIVE.has(mem.emotion) && mem.emotion_score < 0);
+  const ok = fieldsOk && enumOk && signOk;
+  console.log(`\n[${label}] 4-field=${fieldsOk ? "✅" : "❌"} enum=${enumOk ? "✅" : "❌"} sign=${signOk ? "✅" : "❌"}`);
   console.log(JSON.stringify(mem, null, 2));
   return ok;
 }

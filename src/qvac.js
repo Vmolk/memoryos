@@ -40,14 +40,31 @@ const WHISPER_CONFIG = {
   },
 };
 
+// Fixed emotion vocabulary. Enforced at grammar level via JSON-schema `enum`
+// (llama.cpp converts the schema to GBNF), with an app-layer fallback in
+// parseMemory() in case any future model/SDK path doesn't honor the grammar.
+export const EMOTION_LABELS = [
+  "joyful",
+  "grateful",
+  "calm",
+  "neutral",
+  "tired",
+  "anxious",
+  "sad",
+  "angry",
+];
+// Sign expectation per label, used to keep emotion ↔ emotion_score consistent.
+const POSITIVE_EMOTIONS = new Set(["joyful", "grateful", "calm"]);
+const NEGATIVE_EMOTIONS = new Set(["anxious", "sad", "angry"]);
+// "neutral" and "tired" are intentionally sign-neutral (no enforcement).
+
 // emotion_score is a float in [-1.0, 1.0]: -1 = very negative, +1 = very positive.
-// emotion is a short lowercase label (e.g. "joyful", "anxious", "calm").
 // tags is an array of 1-5 short lowercase keywords.
 const MEMORY_SCHEMA = {
   type: "object",
   properties: {
     summary: { type: "string" },
-    emotion: { type: "string" },
+    emotion: { type: "string", enum: EMOTION_LABELS },
     emotion_score: { type: "number" },
     tags: { type: "array", items: { type: "string" } },
   },
@@ -58,8 +75,8 @@ const MEMORY_SCHEMA = {
 const ORGANIZE_SYSTEM_PROMPT = `You turn a raw personal note into a structured memory. Return ONLY valid JSON matching the schema.
 Rules:
 - summary: 1-2 sentences, first person, written in the SAME language as the input note.
-- emotion: ONE short lowercase English label for the dominant feeling (e.g. "joyful", "anxious", "calm", "sad", "angry", "neutral").
-- emotion_score: a float between -1.0 and 1.0 (-1.0 = very negative, 0 = neutral, 1.0 = very positive).
+- emotion: EXACTLY ONE label from this list: ${EMOTION_LABELS.join(", ")}. Pick the closest dominant feeling.
+- emotion_score: a float between -1.0 and 1.0 (-1.0 = very negative, 0 = neutral, 1.0 = very positive). Its sign MUST match the emotion (positive emotions > 0, negative emotions < 0).
 - tags: 1-5 short lowercase keywords capturing the key topics/entities of the note.
 Do not add any text outside the JSON.`;
 
@@ -150,13 +167,28 @@ function parseMemory(contentText) {
   } catch {
     throw new Error("LLM did not return valid JSON: " + String(contentText).slice(0, 200));
   }
-  // Normalize / clamp as a safety net (GBNF doesn't enforce numeric range).
-  const score = Number(obj.emotion_score);
+
+  // Emotion: grammar should already constrain to EMOTION_LABELS; fall back to
+  // "neutral" if anything off-list slips through (app-layer guarantee).
+  let emotion = String(obj.emotion ?? "").trim().toLowerCase();
+  if (!EMOTION_LABELS.includes(emotion)) emotion = "neutral";
+
+  // Score: clamp to [-1, 1] (GBNF doesn't enforce numeric range), then align
+  // its sign to the emotion label so chart (score) and filter (label) agree.
+  let score = Number(obj.emotion_score);
+  if (!Number.isFinite(score)) score = 0;
+  score = Math.max(-1, Math.min(1, score));
+  if (POSITIVE_EMOTIONS.has(emotion) && score < 0) score = -score;
+  if (NEGATIVE_EMOTIONS.has(emotion) && score > 0) score = -score;
+
   return {
     summary: String(obj.summary ?? "").trim(),
-    emotion: String(obj.emotion ?? "neutral").trim().toLowerCase(),
-    emotion_score: Number.isFinite(score) ? Math.max(-1, Math.min(1, score)) : 0,
-    tags: Array.isArray(obj.tags) ? obj.tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean) : [],
+    emotion,
+    emotion_score: score,
+    // Cap at 5 (grammar doesn't enforce maxItems); dedupe.
+    tags: Array.isArray(obj.tags)
+      ? [...new Set(obj.tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean))].slice(0, 5)
+      : [],
   };
 }
 
