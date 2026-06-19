@@ -5,7 +5,8 @@
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "fetch-models": "node src/fetch-models.js"
   },
   "dependencies": {
     "@qvac/sdk": "0.13.3",

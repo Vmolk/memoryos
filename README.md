@@ -55,12 +55,17 @@ Capture (you decide)  →  AI Organizes  →  Local Memory  →  Reflection
 ## Install & run
 
 ```bash
-npm install        # installs @qvac/sdk@0.13.3 + express
-npm start          # starts the server (default http://localhost:3777)
+npm install         # installs @qvac/sdk@0.13.3 + express
+npm run fetch-models # one-time: downloads the 3 on-device models (~1.1 GB, needs internet once)
+npm start           # starts the server (default http://localhost:3777)
 ```
 
 Open **http://localhost:3777**, choose **Text** or **Voice**, capture a memory, then switch to
-**Timeline** to see it and the emotion chart. First capture triggers a one-time model download.
+**Timeline** to see it, the emotion chart, and **Ask** (semantic search over your memories).
+
+> `npm run fetch-models` is optional but recommended — it pre-caches models so your first capture
+> isn't waiting on a download. If you skip it, the first capture downloads models lazily. Either way,
+> after the one-time download the app runs **fully offline**.
 
 ## On-device & privacy
 
