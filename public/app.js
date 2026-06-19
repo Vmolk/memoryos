@@ -91,6 +91,39 @@ async function loadTimeline() {
     : `<div class="empty">No memories yet. Capture one to get started.</div>`;
 }
 
+// ---- Ask (semantic search + grounded answer) ----
+async function runAsk() {
+  const question = $("#ask-input").value.trim();
+  if (!question) return;
+  $("#btn-ask").disabled = true;
+  $("#ask-answer").innerHTML = `<div class="answer pending">Searching your memories on-device…</div>`;
+  $("#ask-matches").innerHTML = "";
+  try {
+    const r = await postJSON("/api/ask", { question });
+    // answer text: the LLM's answer, or — if it wobbled but we have matches — a neutral
+    // pointer to the matches, or the honest "no memory" when nothing was relevant.
+    let answerHtml;
+    if (r.answer) answerHtml = `<div class="answer">${escapeHtml(r.answer)}</div>`;
+    else if (r.matches.length) answerHtml = `<div class="answer">Đây là memory liên quan nhất mình tìm được:</div>`;
+    else answerHtml = `<div class="answer notfound">Mình không có memory nào về việc này.</div>`;
+    $("#ask-answer").innerHTML = answerHtml;
+    $("#ask-matches").innerHTML = r.matches.length
+      ? `<div class="matches-label">Grounded in:</div>` + r.matches.map((m) => `
+          <div class="match">
+            <span class="match-score">${m.score.toFixed(2)}</span>
+            <span class="match-summary">${escapeHtml(m.summary)}</span>
+            <span class="chip emotion">${escapeHtml(m.emotion)}</span>
+          </div>`).join("")
+      : "";
+  } catch (e) {
+    $("#ask-answer").innerHTML = `<div class="answer notfound">Error: ${escapeHtml(e.message)}</div>`;
+  } finally {
+    $("#btn-ask").disabled = false;
+  }
+}
+$("#btn-ask").addEventListener("click", runAsk);
+$("#ask-input").addEventListener("keydown", (e) => { if (e.key === "Enter") runAsk(); });
+
 // Hand-drawn SVG line chart. Fixed y-axis [-1, 1] with a clear zero baseline,
 // so the sign of the daily-average emotion is always readable. No libraries.
 function renderChart(daily) {

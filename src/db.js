@@ -26,7 +26,16 @@ export function openDb(dbPath = DEFAULT_DB_PATH) {
   const db = new DatabaseSync(dbPath);
   db.exec("PRAGMA journal_mode = WAL;");
   initSchema(db);
+  ensureEmbeddingColumn(db); // v2 migration (additive; v1 rows backfilled at startup)
   return db;
+}
+
+// Adds the `embedding BLOB` column if it isn't there yet (v1 -> v2 migration).
+function ensureEmbeddingColumn(db) {
+  const cols = db.prepare("PRAGMA table_info(memories)").all();
+  if (!cols.some((c) => c.name === "embedding")) {
+    db.exec("ALTER TABLE memories ADD COLUMN embedding BLOB");
+  }
 }
 
 export function initSchema(db) {
@@ -54,8 +63,8 @@ export function initSchema(db) {
 export function insertMemory(db, m) {
   const created_at = m.created_at ?? new Date().toISOString();
   const stmt = db.prepare(`
-    INSERT INTO memories (raw_text, summary, emotion, emotion_score, tags, source_type, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO memories (raw_text, summary, emotion, emotion_score, tags, source_type, created_at, embedding)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const info = stmt.run(
     m.raw_text,
@@ -64,9 +73,28 @@ export function insertMemory(db, m) {
     m.emotion_score,
     JSON.stringify(m.tags ?? []),
     m.source_type,
-    created_at
+    created_at,
+    m.embedding ?? null
   );
   return { id: Number(info.lastInsertRowid) };
+}
+
+/** Set/replace the embedding BLOB for a memory (used by backfill). */
+export function setEmbedding(db, id, blob) {
+  db.prepare(`UPDATE memories SET embedding = ? WHERE id = ?`).run(blob, id);
+}
+
+/** Rows that still need an embedding (v1 memories created before v2). */
+export function memoriesMissingEmbedding(db) {
+  return db.prepare(`SELECT id, raw_text FROM memories WHERE embedding IS NULL`).all();
+}
+
+/** Memories that have an embedding, including the raw BLOB (for semantic search). */
+export function memoriesWithEmbedding(db) {
+  return db
+    .prepare(`SELECT id, raw_text, summary, emotion, emotion_score, created_at, embedding
+              FROM memories WHERE embedding IS NOT NULL`)
+    .all();
 }
 
 function rowToMemory(row) {

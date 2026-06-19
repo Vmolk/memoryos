@@ -13,13 +13,16 @@ import {
   unloadModel,
   transcribe,
   completion,
+  embed,
   WHISPER_TINY,
   LLAMA_3_2_1B_INST_Q4_0,
+  EMBEDDINGGEMMA_300M_Q8_0,
 } from "@qvac/sdk";
 import { logEvent } from "./logger.js";
 
 const WHISPER = { name: "WHISPER_TINY", src: WHISPER_TINY };
 const LLM = { name: "LLAMA_3_2_1B_INST_Q4_0", src: LLAMA_3_2_1B_INST_Q4_0 };
+const EMBED = { name: "EMBEDDINGGEMMA_300M_Q8_0", src: EMBEDDINGGEMMA_300M_Q8_0 };
 
 const WHISPER_CONFIG = {
   audio_format: "f32le",
@@ -80,12 +83,18 @@ Rules:
 - tags: 1-5 short lowercase keywords capturing the key topics/entities of the note.
 Do not add any text outside the JSON.`;
 
+// Grounded-answer prompt (v2 /api/ask). Kept SHORT on purpose — 1B wobbles on long
+// output, so we constrain length at the source. Same NOT_FOUND contract as Gate 3.
+const ANSWER_SYSTEM_PROMPT = `You answer a question about the user's past journal notes. Use ONLY the facts in the numbered notes provided. Write a SHORT 1-2 sentence answer in the SAME language as the question. Never copy the notes verbatim. If the notes do not contain the answer, reply with exactly: NOT_FOUND`;
+
 let whisperId = null;
 let llmId = null;
+let embedId = null;
 
 // Object wrappers so ensureModel can read/write the module-level ids.
 const whisperSlot = { get id() { return whisperId; }, set id(v) { whisperId = v; } };
 const llmSlot = { get id() { return llmId; }, set id(v) { llmId = v; } };
+const embedSlot = { get id() { return embedId; }, set id(v) { embedId = v; } };
 
 async function ensureModel(slot, def, modelConfig) {
   if (slot.id) return slot.id;
@@ -160,6 +169,71 @@ export async function organize(rawText) {
   return parseMemory(final.contentText);
 }
 
+/**
+ * Embed text on-device (EmbeddingGemma, L2-normalized 768-d). Logged.
+ * @param {string} text
+ * @returns {Promise<number[]>}
+ */
+export async function embedText(text) {
+  const modelId = await ensureModel(embedSlot, EMBED);
+  const t0 = Date.now();
+  const { embedding, stats } = await embed({ modelId, text });
+  logEvent({
+    event: "embed",
+    model: EMBED.name,
+    model_id: modelId,
+    dim: embedding.length,
+    duration_ms: Date.now() - t0,
+    tokens_per_sec: stats?.tokensPerSecond ?? null,
+    backend_device: stats?.backendDevice ?? null,
+  });
+  return embedding;
+}
+
+/**
+ * Answer a question grounded ONLY in the provided note texts. Short by design.
+ * Returns the raw LLM text (may be "NOT_FOUND"); caller decides how to present it.
+ * @param {string} question
+ * @param {string[]} notes
+ * @returns {Promise<string>}
+ */
+export async function answer(question, notes) {
+  const modelId = await ensureModel(llmSlot, LLM);
+  const context = notes.map((n, i) => `[${i + 1}] ${n}`).join("\n");
+
+  const run = completion({
+    modelId,
+    history: [
+      { role: "system", content: ANSWER_SYSTEM_PROMPT },
+      { role: "user", content: `Notes:\n${context}\n\nQuestion: ${question}\n\nAnswer:` },
+    ],
+    stream: true,
+  });
+
+  const t0 = Date.now();
+  let firstTokenAt = null;
+  for await (const ev of run.events) {
+    if (ev.type === "contentDelta" && firstTokenAt === null) firstTokenAt = Date.now();
+  }
+  const final = await run.final;
+
+  logEvent({
+    event: "inference",
+    kind: "ask",
+    model: LLM.name,
+    model_id: modelId,
+    prompt_len: question.length,
+    prompt_tokens: final.stats?.promptTokens ?? null,
+    generated_tokens: final.stats?.generatedTokens ?? null,
+    ttft_ms: final.stats?.timeToFirstToken ?? (firstTokenAt ? firstTokenAt - t0 : null),
+    tokens_per_sec: final.stats?.tokensPerSecond ?? null,
+    backend_device: final.stats?.backendDevice ?? null,
+    duration_ms: Date.now() - t0,
+  });
+
+  return (final.contentText ?? "").trim();
+}
+
 function parseMemory(contentText) {
   let obj;
   try {
@@ -203,5 +277,10 @@ export async function unloadAll() {
     await unloadModel({ modelId: llmId });
     logEvent({ event: "unload", model: LLM.name, model_id: llmId });
     llmId = null;
+  }
+  if (embedId) {
+    await unloadModel({ modelId: embedId });
+    logEvent({ event: "unload", model: EMBED.name, model_id: embedId });
+    embedId = null;
   }
 }
