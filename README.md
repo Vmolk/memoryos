@@ -85,8 +85,8 @@ Open **http://localhost:3777**, choose **Text** or **Voice**, capture a memory, 
 
 ## Project
 
-- **Author/Team:** `[TODO: AUTHOR/TEAM]`
-- **Repository:** `[TODO: GITHUB URL]`
+- **Author/Team:** `[TODO: AUTHOR/TEAM]`  <!-- fill before submitting the DoraHacks form -->
+- **Repository:** https://github.com/Vmolk/memoryos
 - **Hackathon:** QVAC Hackathon I (Tether)
 
 ## License
