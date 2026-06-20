@@ -4,6 +4,9 @@
   "description": "A privacy-first AI memory companion that helps you remember what matters — not everything. Powered entirely by on-device AI (QVAC SDK). Nothing leaves your machine.",
   "type": "module",
   "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "start": "node src/server.js",
     "fetch-models": "node src/fetch-models.js"
